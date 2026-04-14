@@ -59,6 +59,7 @@ export interface OdooWebhookPayload {
   contact_name: string | false;
   stage_id: number;
   user_id: number | false;
+  team_id?: number | false;
   date_last_stage_update: string;
   // Legacy format support
   lead_id?: number;

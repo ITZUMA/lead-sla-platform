@@ -16,6 +16,17 @@ export async function POST(request: Request) {
 
     const payload: OdooWebhookPayload = await request.json();
 
+    // Only process leads from Sales Team ID 1 and 6
+    const ALLOWED_TEAM_IDS = [1, 6];
+    const teamId = typeof payload.team_id === 'number' ? payload.team_id : null;
+    if (teamId !== null && !ALLOWED_TEAM_IDS.includes(teamId)) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: `Team ${teamId} not monitored for SLA`,
+      });
+    }
+
     // Handle both Odoo native format and legacy format
     const leadId = payload.id || payload.lead_id;
     const leadName = payload.name || payload.lead_name || `Lead #${leadId}`;
