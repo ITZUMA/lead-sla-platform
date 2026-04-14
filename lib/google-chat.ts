@@ -111,6 +111,20 @@ export async function sendGoogleChatAlert(
                     text: `<b>Alert sent to:</b> ${rule.recipients.join(', ')}`,
                   },
                 },
+                {
+                  buttonList: {
+                    buttons: [
+                      {
+                        text: 'Open in Odoo',
+                        onClick: {
+                          openLink: {
+                            url: `https://erp.zumasales.com/web#id=${lead.odoo_lead_id}&model=crm.lead&view_type=form`,
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
               ],
             },
           ],
