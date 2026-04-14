@@ -8,10 +8,13 @@ export async function POST(request: Request) {
   try {
     const payload: OdooWebhookPayload = await request.json();
 
+    // Accept last_stage_update (Odoo datetime field) or stage_entered_at
+    const stageEnteredAt = payload.last_stage_update || payload.stage_entered_at;
+
     // Validate required fields
-    if (!payload.lead_id || !payload.stage || !payload.stage_entered_at) {
+    if (!payload.lead_id || !payload.stage || !stageEnteredAt) {
       return NextResponse.json(
-        { error: 'Missing required fields: lead_id, stage, stage_entered_at' },
+        { error: 'Missing required fields: lead_id, stage, last_stage_update' },
         { status: 400 },
       );
     }
@@ -19,7 +22,7 @@ export async function POST(request: Request) {
     // Check SLA status immediately
     const slaStatus = checkSLA({
       stage: payload.stage,
-      stage_entered_at: payload.stage_entered_at,
+      stage_entered_at: stageEnteredAt,
     });
 
     // Upsert lead
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
           salesperson: payload.salesperson || '',
           salesperson_email: payload.salesperson_email || '',
           stage: payload.stage,
-          stage_entered_at: payload.stage_entered_at,
+          stage_entered_at: stageEnteredAt,
           sla_status: slaStatus,
           sla_breached_at: slaStatus === 'breached' ? new Date().toISOString() : null,
           is_active: true,

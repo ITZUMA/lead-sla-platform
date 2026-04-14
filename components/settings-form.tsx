@@ -137,7 +137,7 @@ export function SettingsForm() {
   "salesperson": "John Smith",
   "salesperson_email": "john@company.com",
   "stage": "New",
-  "stage_entered_at": "2026-04-13T10:30:00Z"
+  "last_stage_update": "2026-04-13 10:30:00"
 }`}
         </pre>
       </div>

@@ -57,5 +57,6 @@ export interface OdooWebhookPayload {
   salesperson: string;
   salesperson_email: string;
   stage: Stage;
-  stage_entered_at: string;
+  last_stage_update: string; // Odoo datetime field
+  stage_entered_at?: string; // alias, kept for backwards compat
 }
