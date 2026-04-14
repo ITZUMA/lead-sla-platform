@@ -32,7 +32,8 @@ export function SettingsForm() {
       if (res.ok) {
         setMessage('Settings saved!');
       } else {
-        setMessage('Failed to save settings');
+        const data = await res.json().catch(() => ({}));
+        setMessage(`Failed to save: ${data.error || res.statusText}`);
       }
     } catch {
       setMessage('Error saving settings');
