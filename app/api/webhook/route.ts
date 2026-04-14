@@ -6,6 +6,13 @@ import type { OdooWebhookPayload, Lead } from '@/lib/types';
 
 export async function POST(request: Request) {
   try {
+    // Verify token from URL query param
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get('token');
+    if (token !== process.env.WEBHOOK_TOKEN) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const payload: OdooWebhookPayload = await request.json();
 
     // Accept last_stage_update (Odoo datetime field) or stage_entered_at
