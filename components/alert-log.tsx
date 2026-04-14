@@ -49,7 +49,7 @@ export function AlertLog() {
                   {new Date(alert.created_at).toLocaleString()}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {(alert.lead as Record<string, string>)?.lead_name || '-'}
+                  {(alert.lead as unknown as Record<string, string>)?.lead_name || '-'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                   {alert.stage}
