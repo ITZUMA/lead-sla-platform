@@ -50,13 +50,23 @@ export interface SlaRuleConfig {
   recipients: string[];
 }
 
+// Matches the actual Odoo webhook payload format
 export interface OdooWebhookPayload {
-  lead_id: number;
-  lead_name: string;
-  partner_name: string;
-  salesperson: string;
-  salesperson_email: string;
-  stage: Stage;
-  last_stage_update: string; // Odoo datetime field
-  stage_entered_at?: string; // alias, kept for backwards compat
+  _model?: string;
+  _name?: string;
+  id: number;
+  name: string;
+  contact_name: string | false;
+  stage_id: number;
+  user_id: number | false;
+  date_last_stage_update: string;
+  // Legacy format support
+  lead_id?: number;
+  lead_name?: string;
+  partner_name?: string;
+  salesperson?: string;
+  salesperson_email?: string;
+  stage?: Stage;
+  last_stage_update?: string;
+  stage_entered_at?: string;
 }

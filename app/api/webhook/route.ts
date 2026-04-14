@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { checkSLA } from '@/lib/sla';
 import { sendGoogleChatAlert } from '@/lib/google-chat';
+import { getStageNameFromId, getSlaStage } from '@/lib/odoo-stages';
 import type { OdooWebhookPayload, Lead } from '@/lib/types';
 
 export async function POST(request: Request) {
@@ -15,34 +16,52 @@ export async function POST(request: Request) {
 
     const payload: OdooWebhookPayload = await request.json();
 
-    // Accept last_stage_update (Odoo datetime field) or stage_entered_at
-    const stageEnteredAt = payload.last_stage_update || payload.stage_entered_at;
+    // Handle both Odoo native format and legacy format
+    const leadId = payload.id || payload.lead_id;
+    const leadName = payload.name || payload.lead_name || `Lead #${leadId}`;
+    const partnerName = (payload.contact_name !== false && payload.contact_name) || payload.partner_name || '';
+    const stageEnteredAt = payload.date_last_stage_update || payload.last_stage_update || payload.stage_entered_at;
+
+    // Resolve stage name from stage_id or use direct stage name
+    let odooStageName: string;
+    if (payload.stage_id) {
+      odooStageName = getStageNameFromId(payload.stage_id);
+    } else if (payload.stage) {
+      odooStageName = payload.stage;
+    } else {
+      return NextResponse.json({ error: 'Missing stage_id or stage' }, { status: 400 });
+    }
+
+    // Map to SLA stage (may be null if not SLA-monitored)
+    const slaStage = getSlaStage(odooStageName);
 
     // Validate required fields
-    if (!payload.lead_id || !payload.stage || !stageEnteredAt) {
+    if (!leadId || !stageEnteredAt) {
       return NextResponse.json(
-        { error: 'Missing required fields: lead_id, stage, last_stage_update' },
+        { error: 'Missing required fields: id, date_last_stage_update' },
         { status: 400 },
       );
     }
 
-    // Check SLA status immediately
-    const slaStatus = checkSLA({
-      stage: payload.stage,
-      stage_entered_at: stageEnteredAt,
-    });
+    // Check SLA status (only if stage is SLA-monitored)
+    const slaStatus = slaStage
+      ? checkSLA({ stage: slaStage, stage_entered_at: stageEnteredAt })
+      : 'ok';
+
+    // Use the SLA stage name for display, or the raw Odoo stage name
+    const displayStage = slaStage || odooStageName;
 
     // Upsert lead
     const { data: lead, error } = await supabase
       .from('leads')
       .upsert(
         {
-          odoo_lead_id: payload.lead_id,
-          lead_name: payload.lead_name || `Lead #${payload.lead_id}`,
-          partner_name: payload.partner_name || '',
-          salesperson: payload.salesperson || '',
+          odoo_lead_id: leadId,
+          lead_name: leadName,
+          partner_name: partnerName,
+          salesperson: payload.salesperson || (payload.user_id ? `User ${payload.user_id}` : ''),
           salesperson_email: payload.salesperson_email || '',
-          stage: payload.stage,
+          stage: displayStage,
           stage_entered_at: stageEnteredAt,
           sla_status: slaStatus,
           sla_breached_at: slaStatus === 'breached' ? new Date().toISOString() : null,
@@ -55,7 +74,7 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Supabase upsert error:', error);
-      return NextResponse.json({ error: 'Database error' }, { status: 500 });
+      return NextResponse.json({ error: 'Database error', detail: error.message }, { status: 500 });
     }
 
     // If SLA is breached, send alert
@@ -66,6 +85,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       lead_id: lead?.id,
+      odoo_stage: odooStageName,
+      sla_stage: slaStage,
       sla_status: slaStatus,
     });
   } catch (err) {
