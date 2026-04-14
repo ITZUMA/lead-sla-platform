@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error('Webhook error:', err);
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request', detail: String(err) }, { status: 400 });
   }
 }
 
