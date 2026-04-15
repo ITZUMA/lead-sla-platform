@@ -11,12 +11,20 @@ const TEAMS = [
   { id: '6', label: 'Team 6' },
 ];
 
+const LEAD_TYPES = [
+  { id: '', label: 'All Types' },
+  { id: 'lead', label: 'Lead' },
+  { id: 'opportunity', label: 'Opportunity' },
+];
+
 const emptyRoute = {
   name: '',
   webhook_url: '',
   stage: '',
   team_id: '',
   alert_level: '',
+  lead_type: '',
+  sla_override_minutes: '',
 };
 
 export function RoutingSettings() {
@@ -56,6 +64,8 @@ export function RoutingSettings() {
           stage: form.stage || null,
           team_id: form.team_id ? parseInt(form.team_id) : null,
           alert_level: form.alert_level || null,
+          lead_type: form.lead_type || null,
+          sla_override_minutes: form.sla_override_minutes ? parseInt(form.sla_override_minutes) : null,
         }),
       });
       if (res.ok) {
@@ -173,6 +183,29 @@ export function RoutingSettings() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Lead Type (optional)</label>
+              <select
+                value={form.lead_type}
+                onChange={(e) => setForm({ ...form, lead_type: e.target.value })}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                {LEAD_TYPES.map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">SLA Override (minutes, optional)</label>
+              <input
+                type="number"
+                value={form.sla_override_minutes}
+                onChange={(e) => setForm({ ...form, sla_override_minutes: e.target.value })}
+                placeholder="e.g. 15 for 15 min, 60 for 1 hour"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-400">Leave empty to use default SLA for the stage</p>
+            </div>
           </div>
           <button
             onClick={handleSave}
@@ -195,8 +228,10 @@ export function RoutingSettings() {
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Name</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Stage</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Type</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Team</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Level</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">SLA</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Actions</th>
               </tr>
@@ -206,8 +241,10 @@ export function RoutingSettings() {
                 <tr key={route.id} className={route.is_active ? '' : 'opacity-50'}>
                   <td className="px-3 py-3 text-sm font-medium text-gray-900">{route.name}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.stage || 'All'}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{route.lead_type || 'All'}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.team_id ? `Team ${route.team_id}` : 'All'}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.alert_level?.toUpperCase() || 'All'}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{route.sla_override_minutes ? `${route.sla_override_minutes}m` : 'Default'}</td>
                   <td className="px-3 py-3">
                     <button
                       onClick={() => handleToggle(route)}

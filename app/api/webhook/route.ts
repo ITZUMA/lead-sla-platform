@@ -16,15 +16,6 @@ export async function POST(request: Request) {
 
     const payload: OdooWebhookPayload = await request.json();
 
-    // Only process opportunities (skip leads)
-    if (payload.type && payload.type !== 'opportunity') {
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-        reason: `Type "${payload.type}" not monitored, only opportunities`,
-      });
-    }
-
     // Only process leads from Sales Team ID 1 and 6
     const ALLOWED_TEAM_IDS = [1, 6];
     const teamId = typeof payload.team_id === 'number' ? payload.team_id : null;
@@ -36,11 +27,29 @@ export async function POST(request: Request) {
       });
     }
 
+    // Determine lead type
+    const leadType = payload.type || 'opportunity';
+
     // Handle both Odoo native format and legacy format
     const leadId = payload.id || payload.lead_id;
     const leadName = payload.name || payload.lead_name || `Lead #${leadId}`;
     const partnerName = (payload.contact_name !== false && payload.contact_name) || payload.partner_name || '';
-    const stageEnteredAt = payload.date_last_stage_update || payload.last_stage_update || payload.stage_entered_at;
+    let stageEnteredAt = payload.date_last_stage_update || payload.last_stage_update || payload.stage_entered_at;
+
+    // Check if this lead was previously a 'lead' and is now an 'opportunity'
+    // If so, reset the timer to NOW (conversion resets the SLA clock)
+    if (leadType === 'opportunity' && leadId) {
+      const { data: existingLead } = await supabase
+        .from('leads')
+        .select('lead_type')
+        .eq('odoo_lead_id', leadId)
+        .limit(1)
+        .single();
+
+      if (existingLead && existingLead.lead_type === 'lead') {
+        stageEnteredAt = new Date().toISOString(); // Reset timer
+      }
+    }
 
     // Resolve stage name from stage_id or use direct stage name
     let odooStageName: string;
@@ -84,6 +93,7 @@ export async function POST(request: Request) {
           stage: displayStage,
           stage_entered_at: stageEnteredAt,
           team_id: teamId,
+          lead_type: leadType,
           sla_status: slaStatus,
           sla_breached_at: slaStatus === 'breached' ? new Date().toISOString() : null,
           is_active: true,

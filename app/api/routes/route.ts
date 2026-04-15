@@ -33,6 +33,8 @@ export async function POST(request: Request) {
       stage: body.stage || null,
       team_id: body.team_id || null,
       alert_level: body.alert_level || null,
+      lead_type: body.lead_type || null,
+      sla_override_minutes: body.sla_override_minutes || null,
       is_active: body.is_active !== false,
     })
     .select()
@@ -64,6 +66,8 @@ export async function PUT(request: Request) {
       stage: body.stage || null,
       team_id: body.team_id || null,
       alert_level: body.alert_level || null,
+      lead_type: body.lead_type || null,
+      sla_override_minutes: body.sla_override_minutes || null,
       is_active: body.is_active,
     })
     .eq('id', body.id)

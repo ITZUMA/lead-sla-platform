@@ -20,6 +20,8 @@ export interface Lead {
   sla_status: SlaStatus;
   sla_breached_at: string | null;
   is_active: boolean;
+  team_id?: number | null;
+  lead_type?: string; // 'lead' or 'opportunity'
   created_at: string;
   updated_at: string;
 }

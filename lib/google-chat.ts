@@ -18,16 +18,18 @@ export interface AlertRoute {
   stage: string | null;
   team_id: number | null;
   alert_level: string | null;
+  lead_type: string | null;           // 'lead', 'opportunity', or null (all)
+  sla_override_minutes: number | null; // Custom SLA in minutes (null = use default)
   is_active: boolean;
 }
 
 /**
- * Get all matching webhook URLs for a lead based on routing rules.
+ * Get all matching routes for a lead based on routing rules.
  * Falls back to the default webhook URL from settings if no routes match.
  */
-export async function getMatchingWebhookUrls(
-  lead: Lead & { team_id?: number | null },
-): Promise<string[]> {
+export async function getMatchingRoutes(
+  lead: Lead,
+): Promise<AlertRoute[]> {
   if (!isSupabaseConfigured) return [];
 
   const rule = SLA_RULES[lead.stage as Stage];
@@ -46,32 +48,40 @@ export async function getMatchingWebhookUrls(
       .select('google_chat_webhook_url')
       .limit(1)
       .single();
-    return settings?.google_chat_webhook_url ? [settings.google_chat_webhook_url] : [];
+    if (settings?.google_chat_webhook_url) {
+      return [{
+        id: 'default',
+        name: 'Default',
+        webhook_url: settings.google_chat_webhook_url,
+        stage: null,
+        team_id: null,
+        alert_level: null,
+        lead_type: null,
+        sla_override_minutes: null,
+        is_active: true,
+      }];
+    }
+    return [];
   }
 
-  const matched: string[] = [];
+  const matched: AlertRoute[] = [];
 
   for (const route of routes as AlertRoute[]) {
     let matches = true;
 
     // Check stage filter
-    if (route.stage && route.stage !== lead.stage) {
-      matches = false;
-    }
+    if (route.stage && route.stage !== lead.stage) matches = false;
 
     // Check team filter
-    if (route.team_id && route.team_id !== lead.team_id) {
-      matches = false;
-    }
+    if (route.team_id && route.team_id !== lead.team_id) matches = false;
 
     // Check alert level filter
-    if (route.alert_level && route.alert_level !== alertLevel) {
-      matches = false;
-    }
+    if (route.alert_level && route.alert_level !== alertLevel) matches = false;
 
-    if (matches) {
-      matched.push(route.webhook_url);
-    }
+    // Check lead type filter
+    if (route.lead_type && route.lead_type !== lead.lead_type) matches = false;
+
+    if (matches) matched.push(route);
   }
 
   // If routes exist but none matched, fall back to default
@@ -81,10 +91,22 @@ export async function getMatchingWebhookUrls(
       .select('google_chat_webhook_url')
       .limit(1)
       .single();
-    return settings?.google_chat_webhook_url ? [settings.google_chat_webhook_url] : [];
+    if (settings?.google_chat_webhook_url) {
+      return [{
+        id: 'default',
+        name: 'Default',
+        webhook_url: settings.google_chat_webhook_url,
+        stage: null,
+        team_id: null,
+        alert_level: null,
+        lead_type: null,
+        sla_override_minutes: null,
+        is_active: true,
+      }];
+    }
   }
 
-  return [...new Set(matched)]; // deduplicate
+  return matched;
 }
 
 function buildAlertCard(lead: Lead) {
@@ -172,17 +194,29 @@ export async function sendGoogleChatAlert(
 
 /**
  * Send alerts to all matching routes for a lead.
+ * Each route can have its own SLA override — only sends if that route's SLA is breached.
  */
 export async function sendRoutedAlerts(
-  lead: Lead & { team_id?: number | null },
+  lead: Lead,
 ): Promise<{ sent: number; urls: string[] }> {
-  const urls = await getMatchingWebhookUrls(lead);
+  const routes = await getMatchingRoutes(lead);
   let sent = 0;
+  const urls: string[] = [];
 
-  for (const url of urls) {
-    const result = await sendGoogleChatAlert(lead, url);
-    if (result) sent++;
+  for (const route of routes) {
+    // If route has SLA override, check against that threshold
+    if (route.sla_override_minutes) {
+      const { checkSLA: checkSLAFn } = await import('./sla');
+      const status = checkSLAFn(lead, route.sla_override_minutes);
+      if (status !== 'breached') continue; // Not breached per this route's SLA
+    }
+
+    const result = await sendGoogleChatAlert(lead, route.webhook_url);
+    if (result) {
+      sent++;
+      urls.push(route.webhook_url);
+    }
   }
 
-  return { sent, urls };
+  return { sent, urls: [...new Set(urls)] };
 }

@@ -148,16 +148,29 @@ export function getBusinessMs(startUtc: Date, endUtc: Date): number {
   return getBusinessMinutes(startUtc, endUtc) * 60 * 1000;
 }
 
-export function checkSLA(lead: Pick<Lead, 'stage' | 'stage_entered_at'>): SlaStatus {
+/**
+ * Check SLA status. Optionally pass slaOverrideMinutes to use a custom threshold
+ * instead of the default rule for the stage (used for routing-based SLA overrides).
+ */
+export function checkSLA(
+  lead: Pick<Lead, 'stage' | 'stage_entered_at'>,
+  slaOverrideMinutes?: number | null,
+): SlaStatus {
   const rule = SLA_RULES[lead.stage as Stage];
-  if (!rule) return 'ok';
+  if (!rule && !slaOverrideMinutes) return 'ok';
+
+  const maxIdleMs = slaOverrideMinutes
+    ? slaOverrideMinutes * 60 * 1000
+    : rule?.max_idle_ms || 0;
+
+  if (maxIdleMs === 0) return 'ok';
 
   const stageStart = new Date(lead.stage_entered_at);
   const now = new Date();
   const bizMs = getBusinessMs(stageStart, now);
 
-  if (bizMs >= rule.max_idle_ms) return 'breached';
-  if (bizMs >= rule.max_idle_ms * 0.8) return 'warning';
+  if (bizMs >= maxIdleMs) return 'breached';
+  if (bizMs >= maxIdleMs * 0.8) return 'warning';
   return 'ok';
 }
 
