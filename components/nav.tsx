@@ -11,7 +11,7 @@ const links = [
   { href: '/settings', label: 'Settings' },
 ];
 
-export function Nav() {
+export function Nav({ userName }: { userName?: string | null }) {
   const pathname = usePathname();
 
   return (
@@ -39,6 +39,19 @@ export function Nav() {
               ))}
             </div>
           </div>
+          {userName && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500">{userName}</span>
+              <form action="/api/auth/signout" method="POST">
+                <button
+                  type="submit"
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     </nav>

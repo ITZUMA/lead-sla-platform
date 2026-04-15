@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { auth } from '@/lib/auth';
 import { Nav } from '@/components/nav';
 import './globals.css';
 
@@ -18,11 +19,13 @@ export const metadata: Metadata = {
   description: 'Odoo Lead SLA Automation Platform',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html
       lang="en"
@@ -30,7 +33,7 @@ export default function RootLayout({
       style={{ colorScheme: 'light' }}
     >
       <body className="min-h-full bg-gray-50">
-        <Nav />
+        <Nav userName={session?.user?.name} />
         <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           {children}
         </main>
