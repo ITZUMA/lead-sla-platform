@@ -21,7 +21,7 @@ const emptyRoute = {
   name: '',
   webhook_url: '',
   stage: '',
-  team_id: '',
+  team_ids: [] as string[],
   alert_level: '',
   lead_type: '',
   sla_value: '',
@@ -72,7 +72,7 @@ export function RoutingSettings() {
           name: form.name,
           webhook_url: form.webhook_url,
           stage: form.stage || null,
-          team_id: form.team_id ? parseInt(form.team_id) : null,
+          team_ids: form.team_ids.length > 0 ? form.team_ids.map(Number) : null,
           alert_level: form.alert_level || null,
           lead_type: form.lead_type || null,
           sla_override_minutes: slaMinutes,
@@ -169,16 +169,26 @@ export function RoutingSettings() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Sales Team (optional)</label>
-              <select
-                value={form.team_id}
-                onChange={(e) => setForm({ ...form, team_id: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              >
-                {TEAMS.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Sales Teams (optional)</label>
+              <div className="flex flex-wrap gap-3 rounded-md border border-gray-300 px-3 py-2">
+                {TEAMS.filter(t => t.id).map((t) => (
+                  <label key={t.id} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.team_ids.includes(t.id)}
+                      onChange={(e) => {
+                        const newIds = e.target.checked
+                          ? [...form.team_ids, t.id]
+                          : form.team_ids.filter(id => id !== t.id);
+                        setForm({ ...form, team_ids: newIds });
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    {t.label}
+                  </label>
                 ))}
-              </select>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">Leave unchecked for all teams</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Alert Level (optional)</label>
@@ -264,7 +274,7 @@ export function RoutingSettings() {
                   <td className="px-3 py-3 text-sm font-medium text-gray-900">{route.name}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.stage || 'All'}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.lead_type || 'All'}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{route.team_id ? `Team ${route.team_id}` : 'All'}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{route.team_ids?.length ? route.team_ids.map(id => `Team ${id}`).join(', ') : route.team_id ? `Team ${route.team_id}` : 'All'}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.alert_level?.toUpperCase() || 'All'}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">
                     {route.sla_override_minutes

@@ -16,7 +16,8 @@ export interface AlertRoute {
   name: string;
   webhook_url: string;
   stage: string | null;
-  team_id: number | null;
+  team_id: number | null;             // legacy single team
+  team_ids: number[] | null;          // multiple teams
   alert_level: string | null;
   lead_type: string | null;           // 'lead', 'opportunity', or null (all)
   sla_override_minutes: number | null; // Custom SLA in minutes (null = use default)
@@ -55,6 +56,7 @@ export async function getMatchingRoutes(
         webhook_url: settings.google_chat_webhook_url,
         stage: null,
         team_id: null,
+        team_ids: null,
         alert_level: null,
         lead_type: null,
         sla_override_minutes: null,
@@ -72,8 +74,9 @@ export async function getMatchingRoutes(
     // Check stage filter
     if (route.stage && route.stage !== lead.stage) matches = false;
 
-    // Check team filter
-    if (route.team_id && route.team_id !== lead.team_id) matches = false;
+    // Check team filter (supports both team_ids array and legacy team_id)
+    const routeTeams = route.team_ids || (route.team_id ? [route.team_id] : null);
+    if (routeTeams && routeTeams.length > 0 && (!lead.team_id || !routeTeams.includes(lead.team_id))) matches = false;
 
     // Check alert level filter
     if (route.alert_level && route.alert_level !== alertLevel) matches = false;
@@ -98,6 +101,7 @@ export async function getMatchingRoutes(
         webhook_url: settings.google_chat_webhook_url,
         stage: null,
         team_id: null,
+        team_ids: null,
         alert_level: null,
         lead_type: null,
         sla_override_minutes: null,
