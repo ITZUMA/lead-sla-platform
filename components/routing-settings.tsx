@@ -24,7 +24,8 @@ const emptyRoute = {
   team_id: '',
   alert_level: '',
   lead_type: '',
-  sla_override_minutes: '',
+  sla_value: '',
+  sla_unit: 'minutes',
 };
 
 export function RoutingSettings() {
@@ -55,6 +56,15 @@ export function RoutingSettings() {
     setSaving(true);
     setMessage('');
     try {
+      // Convert SLA value + unit to minutes
+      let slaMinutes: number | null = null;
+      if (form.sla_value) {
+        const val = parseFloat(form.sla_value);
+        if (form.sla_unit === 'hours') slaMinutes = Math.round(val * 60);
+        else if (form.sla_unit === 'days') slaMinutes = Math.round(val * 510); // 8.5 biz hours per day
+        else slaMinutes = Math.round(val);
+      }
+
       const res = await fetch('/api/routes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,7 +75,7 @@ export function RoutingSettings() {
           team_id: form.team_id ? parseInt(form.team_id) : null,
           alert_level: form.alert_level || null,
           lead_type: form.lead_type || null,
-          sla_override_minutes: form.sla_override_minutes ? parseInt(form.sla_override_minutes) : null,
+          sla_override_minutes: slaMinutes,
         }),
       });
       if (res.ok) {
@@ -196,14 +206,26 @@ export function RoutingSettings() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">SLA Override (minutes, optional)</label>
-              <input
-                type="number"
-                value={form.sla_override_minutes}
-                onChange={(e) => setForm({ ...form, sla_override_minutes: e.target.value })}
-                placeholder="e.g. 15 for 15 min, 60 for 1 hour"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
+              <label className="block text-xs font-medium text-gray-600 mb-1">SLA Override (optional)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={form.sla_value}
+                  onChange={(e) => setForm({ ...form, sla_value: e.target.value })}
+                  placeholder="e.g. 15"
+                  className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  min="1"
+                />
+                <select
+                  value={form.sla_unit}
+                  onChange={(e) => setForm({ ...form, sla_unit: e.target.value })}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="minutes">Minutes</option>
+                  <option value="hours">Hours</option>
+                  <option value="days">Business Days</option>
+                </select>
+              </div>
               <p className="mt-1 text-xs text-gray-400">Leave empty to use default SLA for the stage</p>
             </div>
           </div>
@@ -244,7 +266,15 @@ export function RoutingSettings() {
                   <td className="px-3 py-3 text-sm text-gray-600">{route.lead_type || 'All'}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.team_id ? `Team ${route.team_id}` : 'All'}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{route.alert_level?.toUpperCase() || 'All'}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{route.sla_override_minutes ? `${route.sla_override_minutes}m` : 'Default'}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">
+                    {route.sla_override_minutes
+                      ? route.sla_override_minutes >= 510
+                        ? `${(route.sla_override_minutes / 510).toFixed(1)}d`
+                        : route.sla_override_minutes >= 60
+                          ? `${(route.sla_override_minutes / 60).toFixed(1)}h`
+                          : `${route.sla_override_minutes}m`
+                      : 'Default'}
+                  </td>
                   <td className="px-3 py-3">
                     <button
                       onClick={() => handleToggle(route)}
