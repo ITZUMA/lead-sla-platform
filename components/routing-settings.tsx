@@ -26,6 +26,7 @@ const emptyRoute = {
   lead_type: '',
   sla_value: '',
   sla_unit: 'minutes',
+  action_message: '',
 };
 
 export function RoutingSettings() {
@@ -76,6 +77,7 @@ export function RoutingSettings() {
           alert_level: form.alert_level || null,
           lead_type: form.lead_type || null,
           sla_override_minutes: slaMinutes,
+          action_message: form.action_message || null,
         }),
       });
       if (res.ok) {
@@ -237,6 +239,16 @@ export function RoutingSettings() {
                 </select>
               </div>
               <p className="mt-1 text-xs text-gray-400">Leave empty to use default SLA for the stage</p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Action Message (shown in alert)</label>
+              <input
+                type="text"
+                value={form.action_message}
+                onChange={(e) => setForm({ ...form, action_message: e.target.value })}
+                placeholder="e.g. New lead! Contact within 15 minutes."
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
             </div>
           </div>
           <button

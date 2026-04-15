@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       alert_level: body.alert_level || null,
       lead_type: body.lead_type || null,
       sla_override_minutes: body.sla_override_minutes || null,
+      action_message: body.action_message || null,
       is_active: body.is_active !== false,
     })
     .select()
@@ -68,6 +69,7 @@ export async function PUT(request: Request) {
       alert_level: body.alert_level || null,
       lead_type: body.lead_type || null,
       sla_override_minutes: body.sla_override_minutes || null,
+      action_message: body.action_message || null,
       is_active: body.is_active,
     })
     .eq('id', body.id)

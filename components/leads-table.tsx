@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SlaBadge } from './sla-badge';
-import { getIdleTime, getMaxIdleLabel } from '@/lib/sla';
+import { getIdleTime } from '@/lib/sla';
 import type { Lead, SlaStatus, Stage } from '@/lib/types';
 
 const STAGES: Stage[] = [
@@ -69,7 +69,7 @@ export function LeadsTable() {
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Salesperson</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Stage</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Idle Time</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Max Idle</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Type</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">SLA Status</th>
             </tr>
           </thead>
@@ -114,7 +114,7 @@ export function LeadsTable() {
                     {getIdleTime(lead.stage_entered_at)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                    {getMaxIdleLabel(lead.stage as Stage)}
+                    {lead.lead_type || 'opportunity'}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
                     <SlaBadge status={lead.sla_status as SlaStatus} />

@@ -31,29 +31,29 @@ export async function GET(request: Request) {
     let statusUpdated = 0;
 
     for (const lead of leads as Lead[]) {
-      // Update default SLA status
-      const defaultStatus = checkSLA(lead);
-      if (defaultStatus !== lead.sla_status) {
+      // Check each matching route independently for SLA breaches
+      const routes = await getMatchingRoutes(lead);
+
+      // Update lead SLA status based on the strictest matching route
+      let worstStatus: 'ok' | 'warning' | 'breached' = 'ok';
+      for (const route of routes) {
+        const s = checkSLA(lead, route.sla_override_minutes);
+        if (s === 'breached') { worstStatus = 'breached'; break; }
+        if (s === 'warning') worstStatus = 'warning';
+      }
+      if (worstStatus !== lead.sla_status) {
         await supabase
           .from('leads')
           .update({
-            sla_status: defaultStatus,
-            sla_breached_at: defaultStatus === 'breached' ? new Date().toISOString() : lead.sla_breached_at,
+            sla_status: worstStatus,
+            sla_breached_at: worstStatus === 'breached' ? new Date().toISOString() : lead.sla_breached_at,
           })
           .eq('id', lead.id);
         statusUpdated++;
       }
 
-      // Check each matching route independently for SLA breaches
-      const routes = await getMatchingRoutes(lead);
-
       for (const route of routes) {
-        // Determine which SLA to use: route override or default
-        const slaMinutes = route.sla_override_minutes;
-        const status = slaMinutes
-          ? checkSLA(lead, slaMinutes)
-          : defaultStatus;
-
+        const status = checkSLA(lead, route.sla_override_minutes);
         if (status !== 'breached') continue;
 
         // Check if we already sent an alert for this lead + stage + route
@@ -66,11 +66,11 @@ export async function GET(request: Request) {
           .limit(1)
           .single();
 
-        if (existingAlert) continue; // Already alerted for this route
+        if (existingAlert) continue;
 
         const chatResponse = await sendGoogleChatAlert(
           { ...lead, sla_status: 'breached' },
-          route.webhook_url,
+          route,
         );
 
         if (chatResponse) {

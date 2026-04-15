@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { SLA_RULES, getMaxIdleLabel } from '@/lib/sla';
-import type { Stage } from '@/lib/types';
 
 export function SettingsForm() {
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -48,11 +46,9 @@ export function SettingsForm() {
   return (
     <div className="space-y-8">
       <div className="rounded-lg border bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">Google Chat Webhook</h2>
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Default Google Chat Webhook</h2>
+        <p className="mb-3 text-sm text-gray-500">Fallback webhook if no routes are configured. Routes above take priority.</p>
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
-            Webhook URL
-          </label>
           <input
             type="url"
             value={webhookUrl}
@@ -75,72 +71,6 @@ export function SettingsForm() {
             )}
           </div>
         </div>
-      </div>
-
-      <div className="rounded-lg border bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">SLA Rules</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead>
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Stage</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Max Idle</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Alert Level</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Recipients</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {(Object.entries(SLA_RULES) as [Stage, typeof SLA_RULES[Stage]][]).map(
-                ([stage, rule]) => (
-                  <tr key={stage}>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                      {stage}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                      {getMaxIdleLabel(stage)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          rule.alert_level === 'highest'
-                            ? 'bg-red-100 text-red-800'
-                            : rule.alert_level === 'critical'
-                              ? 'bg-red-100 text-red-700'
-                              : rule.alert_level === 'high'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-blue-100 text-blue-800'
-                        }`}
-                      >
-                        {rule.alert_level.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {rule.recipients.join(', ')}
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="rounded-lg border bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">Webhook Payload Format</h2>
-        <p className="mb-2 text-sm text-gray-600">
-          Configure your Odoo automated action to send a POST request with this JSON body:
-        </p>
-        <pre className="rounded-md bg-gray-50 p-4 text-xs text-gray-800 overflow-x-auto">
-{`{
-  "lead_id": 123,
-  "lead_name": "Equipment Inquiry - ABC Corp",
-  "partner_name": "ABC Corp",
-  "salesperson": "John Smith",
-  "salesperson_email": "john@company.com",
-  "stage": "New",
-  "last_stage_update": "2026-04-13 10:30:00"
-}`}
-        </pre>
       </div>
     </div>
   );

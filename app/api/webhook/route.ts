@@ -115,10 +115,7 @@ export async function POST(request: Request) {
       const routes = await getMatchingRoutes(fullLead);
 
       for (const route of routes) {
-        const routeStatus = route.sla_override_minutes
-          ? checkSLA(fullLead, route.sla_override_minutes)
-          : slaStatus;
-
+        const routeStatus = checkSLA(fullLead, route.sla_override_minutes);
         if (routeStatus !== 'breached') continue;
 
         const alertKey = `${displayStage}:${route.id}`;
@@ -134,7 +131,7 @@ export async function POST(request: Request) {
 
         const chatResponse = await sendGoogleChatAlert(
           { ...fullLead, sla_status: 'breached' },
-          route.webhook_url,
+          route,
         );
 
         if (chatResponse) {
