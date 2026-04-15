@@ -60,7 +60,7 @@ export async function getMatchingWebhookUrls(
     }
 
     // Check team filter
-    if (route.team_id && route.team_id !== (lead as Record<string, unknown>).team_id) {
+    if (route.team_id && route.team_id !== lead.team_id) {
       matches = false;
     }
 
