@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { checkSLA } from '@/lib/sla';
-import { sendRoutedAlerts } from '@/lib/google-chat';
+import { getMatchingRoutes, sendGoogleChatAlert } from '@/lib/google-chat';
 import { getStageNameFromId, getSlaStage } from '@/lib/odoo-stages';
 import type { OdooWebhookPayload, Lead } from '@/lib/types';
 
@@ -108,9 +108,47 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Database error', detail: error.message }, { status: 500 });
     }
 
-    // If SLA is breached, send alert via routing
-    if (slaStatus === 'breached' && lead) {
-      await sendAlertIfNeeded({ ...lead, team_id: teamId } as Lead & { team_id: number | null });
+    // Check each matching route for SLA breach (using route-specific overrides)
+    let routeAlertsSent = 0;
+    if (lead) {
+      const fullLead = { ...lead, team_id: teamId, lead_type: leadType } as Lead;
+      const routes = await getMatchingRoutes(fullLead);
+
+      for (const route of routes) {
+        const routeStatus = route.sla_override_minutes
+          ? checkSLA(fullLead, route.sla_override_minutes)
+          : slaStatus;
+
+        if (routeStatus !== 'breached') continue;
+
+        const alertKey = `${displayStage}:${route.id}`;
+        const { data: existingAlert } = await supabase
+          .from('alerts')
+          .select('id')
+          .eq('lead_id', lead.id)
+          .eq('message', alertKey)
+          .limit(1)
+          .single();
+
+        if (existingAlert) continue;
+
+        const chatResponse = await sendGoogleChatAlert(
+          { ...fullLead, sla_status: 'breached' },
+          route.webhook_url,
+        );
+
+        if (chatResponse) {
+          await supabase.from('alerts').insert({
+            lead_id: lead.id,
+            stage: displayStage,
+            alert_type: 'sla_breach',
+            message: alertKey,
+            sent_to: `Google Chat - ${route.name}`,
+            google_chat_response: chatResponse,
+          });
+          routeAlertsSent++;
+        }
+      }
     }
 
     return NextResponse.json({
@@ -119,37 +157,10 @@ export async function POST(request: Request) {
       odoo_stage: odooStageName,
       sla_stage: slaStage,
       sla_status: slaStatus,
+      alerts_sent: routeAlertsSent,
     });
   } catch (err) {
     console.error('Webhook error:', err);
     return NextResponse.json({ error: 'Invalid request', detail: String(err) }, { status: 400 });
-  }
-}
-
-async function sendAlertIfNeeded(lead: Lead & { team_id?: number | null }) {
-  // Check if we already sent an alert for this lead in this stage
-  const { data: existingAlert } = await supabase
-    .from('alerts')
-    .select('id')
-    .eq('lead_id', lead.id)
-    .eq('stage', lead.stage)
-    .limit(1)
-    .single();
-
-  if (existingAlert) return; // Already alerted for this stage
-
-  // Send to all matching routes
-  const { sent, urls } = await sendRoutedAlerts(lead);
-
-  // Log alert
-  if (sent > 0) {
-    await supabase.from('alerts').insert({
-      lead_id: lead.id,
-      stage: lead.stage,
-      alert_type: 'sla_breach',
-      message: `SLA breached for "${lead.lead_name}" in stage "${lead.stage}"`,
-      sent_to: `Google Chat (${sent} space${sent > 1 ? 's' : ''})`,
-      google_chat_response: { sent, urls },
-    });
   }
 }

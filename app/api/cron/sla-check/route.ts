@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { checkSLA } from '@/lib/sla';
-import { sendRoutedAlerts } from '@/lib/google-chat';
+import { getMatchingRoutes, sendGoogleChatAlert } from '@/lib/google-chat';
 import type { Lead } from '@/lib/types';
 
 export async function GET(request: Request) {
@@ -30,47 +30,59 @@ export async function GET(request: Request) {
     let alertsSent = 0;
     let statusUpdated = 0;
 
-    for (const lead of leads as (Lead & { team_id?: number | null })[]) {
-      const newStatus = checkSLA(lead);
-
-      // Update status if changed
-      if (newStatus !== lead.sla_status) {
+    for (const lead of leads as Lead[]) {
+      // Update default SLA status
+      const defaultStatus = checkSLA(lead);
+      if (defaultStatus !== lead.sla_status) {
         await supabase
           .from('leads')
           .update({
-            sla_status: newStatus,
-            sla_breached_at: newStatus === 'breached' ? new Date().toISOString() : lead.sla_breached_at,
+            sla_status: defaultStatus,
+            sla_breached_at: defaultStatus === 'breached' ? new Date().toISOString() : lead.sla_breached_at,
           })
           .eq('id', lead.id);
         statusUpdated++;
       }
 
-      // Send alert if newly breached
-      if (newStatus === 'breached' && lead.sla_status !== 'breached') {
-        // Check for existing alert in this stage
+      // Check each matching route independently for SLA breaches
+      const routes = await getMatchingRoutes(lead);
+
+      for (const route of routes) {
+        // Determine which SLA to use: route override or default
+        const slaMinutes = route.sla_override_minutes;
+        const status = slaMinutes
+          ? checkSLA(lead, slaMinutes)
+          : defaultStatus;
+
+        if (status !== 'breached') continue;
+
+        // Check if we already sent an alert for this lead + stage + route
+        const alertKey = `${lead.stage}:${route.id}`;
         const { data: existingAlert } = await supabase
           .from('alerts')
           .select('id')
           .eq('lead_id', lead.id)
-          .eq('stage', lead.stage)
+          .eq('message', alertKey)
           .limit(1)
           .single();
 
-        if (!existingAlert) {
-          const { sent } = await sendRoutedAlerts({ ...lead, sla_status: newStatus });
+        if (existingAlert) continue; // Already alerted for this route
 
-          if (sent > 0) {
-            await supabase.from('alerts').insert({
-              lead_id: lead.id,
-              stage: lead.stage,
-              alert_type: 'sla_breach',
-              message: `SLA breached for "${lead.lead_name}" in stage "${lead.stage}"`,
-              sent_to: `Google Chat (${sent} space${sent > 1 ? 's' : ''})`,
-              google_chat_response: { sent },
-            });
+        const chatResponse = await sendGoogleChatAlert(
+          { ...lead, sla_status: 'breached' },
+          route.webhook_url,
+        );
 
-            alertsSent++;
-          }
+        if (chatResponse) {
+          await supabase.from('alerts').insert({
+            lead_id: lead.id,
+            stage: lead.stage,
+            alert_type: 'sla_breach',
+            message: alertKey, // Used as dedup key: stage:routeId
+            sent_to: `Google Chat - ${route.name}`,
+            google_chat_response: chatResponse,
+          });
+          alertsSent++;
         }
       }
     }
