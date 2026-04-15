@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { checkSLA } from '@/lib/sla';
-import { sendGoogleChatAlert } from '@/lib/google-chat';
+import { sendRoutedAlerts } from '@/lib/google-chat';
 import { getStageNameFromId, getSlaStage } from '@/lib/odoo-stages';
 import type { OdooWebhookPayload, Lead } from '@/lib/types';
 
@@ -83,6 +83,7 @@ export async function POST(request: Request) {
           salesperson_email: payload.salesperson_email || '',
           stage: displayStage,
           stage_entered_at: stageEnteredAt,
+          team_id: teamId,
           sla_status: slaStatus,
           sla_breached_at: slaStatus === 'breached' ? new Date().toISOString() : null,
           is_active: true,
@@ -97,9 +98,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Database error', detail: error.message }, { status: 500 });
     }
 
-    // If SLA is breached, send alert
+    // If SLA is breached, send alert via routing
     if (slaStatus === 'breached' && lead) {
-      await sendAlertIfNeeded(lead as Lead);
+      await sendAlertIfNeeded({ ...lead, team_id: teamId } as Lead & { team_id: number | null });
     }
 
     return NextResponse.json({
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function sendAlertIfNeeded(lead: Lead) {
+async function sendAlertIfNeeded(lead: Lead & { team_id?: number | null }) {
   // Check if we already sent an alert for this lead in this stage
   const { data: existingAlert } = await supabase
     .from('alerts')
@@ -127,28 +128,18 @@ async function sendAlertIfNeeded(lead: Lead) {
 
   if (existingAlert) return; // Already alerted for this stage
 
-  // Get webhook URL from settings
-  const { data: settings } = await supabase
-    .from('settings')
-    .select('google_chat_webhook_url')
-    .limit(1)
-    .single();
-
-  const webhookUrl = settings?.google_chat_webhook_url;
-  if (!webhookUrl) {
-    console.warn('No Google Chat webhook URL configured');
-    return;
-  }
-
-  const chatResponse = await sendGoogleChatAlert(lead, webhookUrl);
+  // Send to all matching routes
+  const { sent, urls } = await sendRoutedAlerts(lead);
 
   // Log alert
-  await supabase.from('alerts').insert({
-    lead_id: lead.id,
-    stage: lead.stage,
-    alert_type: 'sla_breach',
-    message: `SLA breached for "${lead.lead_name}" in stage "${lead.stage}"`,
-    sent_to: `Google Chat`,
-    google_chat_response: chatResponse,
-  });
+  if (sent > 0) {
+    await supabase.from('alerts').insert({
+      lead_id: lead.id,
+      stage: lead.stage,
+      alert_type: 'sla_breach',
+      message: `SLA breached for "${lead.lead_name}" in stage "${lead.stage}"`,
+      sent_to: `Google Chat (${sent} space${sent > 1 ? 's' : ''})`,
+      google_chat_response: { sent, urls },
+    });
+  }
 }

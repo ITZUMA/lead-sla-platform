@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { checkSLA } from '@/lib/sla';
-import { sendGoogleChatAlert } from '@/lib/google-chat';
+import { sendRoutedAlerts } from '@/lib/google-chat';
 import type { Lead } from '@/lib/types';
 
 export async function GET(request: Request) {
@@ -27,19 +27,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'No active leads', checked: 0 });
     }
 
-    // Get webhook URL
-    const { data: settings } = await supabase
-      .from('settings')
-      .select('google_chat_webhook_url')
-      .limit(1)
-      .single();
-
-    const webhookUrl = settings?.google_chat_webhook_url;
-
     let alertsSent = 0;
     let statusUpdated = 0;
 
-    for (const lead of leads as Lead[]) {
+    for (const lead of leads as (Lead & { team_id?: number | null })[]) {
       const newStatus = checkSLA(lead);
 
       // Update status if changed
@@ -55,7 +46,7 @@ export async function GET(request: Request) {
       }
 
       // Send alert if newly breached
-      if (newStatus === 'breached' && lead.sla_status !== 'breached' && webhookUrl) {
+      if (newStatus === 'breached' && lead.sla_status !== 'breached') {
         // Check for existing alert in this stage
         const { data: existingAlert } = await supabase
           .from('alerts')
@@ -66,21 +57,20 @@ export async function GET(request: Request) {
           .single();
 
         if (!existingAlert) {
-          const chatResponse = await sendGoogleChatAlert(
-            { ...lead, sla_status: newStatus },
-            webhookUrl,
-          );
+          const { sent } = await sendRoutedAlerts({ ...lead, sla_status: newStatus });
 
-          await supabase.from('alerts').insert({
-            lead_id: lead.id,
-            stage: lead.stage,
-            alert_type: 'sla_breach',
-            message: `SLA breached for "${lead.lead_name}" in stage "${lead.stage}"`,
-            sent_to: 'Google Chat',
-            google_chat_response: chatResponse,
-          });
+          if (sent > 0) {
+            await supabase.from('alerts').insert({
+              lead_id: lead.id,
+              stage: lead.stage,
+              alert_type: 'sla_breach',
+              message: `SLA breached for "${lead.lead_name}" in stage "${lead.stage}"`,
+              sent_to: `Google Chat (${sent} space${sent > 1 ? 's' : ''})`,
+              google_chat_response: { sent },
+            });
 
-          alertsSent++;
+            alertsSent++;
+          }
         }
       }
     }
