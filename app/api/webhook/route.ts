@@ -72,10 +72,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check SLA status (only if stage is SLA-monitored)
-    const slaStatus = slaStage
-      ? checkSLA({ stage: slaStage, stage_entered_at: stageEnteredAt })
-      : 'ok';
+    // Default SLA status (routes handle actual thresholds)
+    const slaStatus = 'ok';
 
     // Use the SLA stage name for display, or the raw Odoo stage name
     const displayStage = slaStage || odooStageName;
